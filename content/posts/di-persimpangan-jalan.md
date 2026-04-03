@@ -26,7 +26,7 @@ Sedang iblis, menyuruhku minum sebotol arak,</br>
 Di balik itu semua, tujuan mereka sama.</br>
 Agar aku mau menunduk kepadanya.
 
-Aku tak mau, Aku memberontak.</br>
+Aku tak mau, aku memberontak.</br>
 Lantas mereka mengusirku,</br>
 seraya menghardik dengan kata yang lebih hina daripada diriku.
 
