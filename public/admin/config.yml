@@ -4,12 +4,6 @@ backend:
   name: github
   repo: Cool-Byte01/koncongopi
   branch: main
-  commit_messages:
-    create: "content: tambah {{collection}} '{{slug}}'"
-    update: "content: perbarui {{collection}} '{{slug}}'"
-    delete: "content: hapus {{collection}} '{{slug}}'"
-    uploadMedia: "assets: unggah {{path}}"
-    deleteMedia: "assets: hapus {{path}}"
 
 media_folder: "static/images/uploads"
 public_folder: "/images/uploads"
@@ -19,12 +13,6 @@ collections:
     label: Posts
     label_singular: Post
     folder: /content/posts
-    preview_path: "posts/{{slug}}"
-    sortable_fields:
-      fields: [date, title]
-      default:
-        field: date
-        direction: descending
     fields:
       - { label: Title, name: title, widget: string }
       - { label: Date, name: date, widget: datetime, type: date }
