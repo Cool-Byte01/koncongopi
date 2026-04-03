@@ -5,11 +5,11 @@ backend:
   repo: Cool-Byte01/koncongopi
   branch: main
   commit_messages:
-  create: "content: tambah {{collection}} '{{slug}}'"
-  update: "content: perbarui {{collection}} '{{slug}}'"
-  delete: "content: hapus {{collection}} '{{slug}}'"
-  uploadMedia: "assets: unggah {{path}}"
-  deleteMedia: "assets: hapus {{path}}"
+    create: "content: tambah {{collection}} '{{slug}}'"
+    update: "content: perbarui {{collection}} '{{slug}}'"
+    delete: "content: hapus {{collection}} '{{slug}}'"
+    uploadMedia: "assets: unggah {{path}}"
+    deleteMedia: "assets: hapus {{path}}"
 
 media_folder: "static/images/uploads"
 public_folder: "/images/uploads"
