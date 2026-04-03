@@ -1,13 +1,17 @@
 ---
-date: '2026-03-25T17:38:03+07:00'
-draft: true
-title: 'Di Persimpangan Jalan Yang Sama'
-categories: ['Keluh Kesah']
-series: ['Mencari Jalan Pulang']
+title: Di Persimpangan Jalan Yang Sama
+date: 2026-04-03
+description: Ketika kebaikan dan keburukan sama-sama bersuara, dan manusia memakai wajah yang tak selalu jujur.
+draft: false
+categories:
+  - Keluh Kesah
+series: Mencari Jalan Pulang
 series_order: 2
-tags: ['puisi', 'refleksi']
-description: 'Ketika kebaikan dan keburukan sama-sama bersuara, dan manusia memakai wajah yang tak selalu jujur.'
+tags:
+  - puisi
+  - refleksi
 ---
+
 Aku tahu rasanya berdiri di persimpangan,</br>saat langkah terasa berat dan arah tak lagi jelas.</br>
 Ketika kebaikan dan keburukan sama-sama bersuara,</br>dan manusia memakai wajah yang tak selalu jujur.
 
