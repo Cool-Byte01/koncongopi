@@ -7,7 +7,6 @@
     let searchInput = null;
     let searchClear = null;
     let searchClose = null;
-    let searchResults = null;
     let searchEmpty = null;
     let searchLoading = null;
     let searchNoResults = null;
@@ -16,9 +15,11 @@
     let searchItems = null;
     let isModalVisible = false;
     let searchData = null;
+    let searchDataPromise = null;
     let currentResults = [];
     let selectedIndex = -1;
     let searchTimeout = null;
+    let lastFocusedElement = null;
     function readJSONConfig(id) {
       const configElement = document.getElementById(id);
       if (!configElement?.textContent) return null;
@@ -29,140 +30,151 @@
         return null;
       }
     }
+    function getUIBridge() {
+      return window.HugoNarrowUI || null;
+    }
+    function lockScroll() {
+      const ui = getUIBridge();
+      if (ui?.lockScroll) {
+        ui.lockScroll("search");
+        return;
+      }
+      document.body.style.overflow = "hidden";
+    }
+    function unlockScroll() {
+      const ui = getUIBridge();
+      if (ui?.unlockScroll) {
+        ui.unlockScroll("search");
+        return;
+      }
+      document.body.style.overflow = "";
+    }
     function init() {
       searchModal = document.getElementById("search-modal");
       searchOverlay = document.getElementById("search-overlay");
       searchInput = document.getElementById("search-input");
       searchClear = document.getElementById("search-clear");
       searchClose = document.getElementById("search-close");
-      searchResults = document.getElementById("search-results");
       searchEmpty = document.getElementById("search-empty");
       searchLoading = document.getElementById("search-loading");
       searchNoResults = document.getElementById("search-no-results");
       searchResultsList = document.getElementById("search-results-list");
       searchStats = document.getElementById("search-stats");
       searchItems = document.getElementById("search-items");
-      if (!searchModal) {
-        return;
-      }
+      if (!searchModal) return;
       bindEvents();
-      loadSearchData();
     }
     function bindEvents() {
-      if (searchClose) {
-        searchClose.addEventListener("click", hideSearch);
-      }
-      if (searchClear) {
-        searchClear.addEventListener("click", clearSearch);
-      }
-      if (searchOverlay) {
-        searchOverlay.addEventListener("click", hideSearch);
-      }
+      searchClose?.addEventListener("click", hideSearch);
+      searchClear?.addEventListener("click", clearSearch);
+      searchOverlay?.addEventListener("click", hideSearch);
       if (searchInput) {
         searchInput.addEventListener("input", handleInput);
-        searchInput.addEventListener("keydown", handleKeydown);
+        searchInput.addEventListener("keydown", handleInputKeydown);
       }
       document.addEventListener("keydown", handleGlobalKeydown);
-      if (searchItems) {
-        searchItems.addEventListener("click", handleResultClick);
-      }
       document.addEventListener("search:open", handleSearchOpenEvent);
       document.addEventListener("search:close", handleSearchCloseEvent);
       document.addEventListener("search:toggle", handleSearchToggleEvent);
     }
-    function handleSearchOpenEvent(e) {
-      if (e?.detail) {
-        e.detail.handled = true;
-      }
-      if (e?.detail?.origin === "search-module") return;
+    function handleSearchOpenEvent(event) {
+      if (event?.detail) event.detail.handled = true;
+      if (event?.detail?.origin === "search-module") return;
       showSearch();
     }
-    function handleSearchCloseEvent(e) {
-      if (e?.detail) {
-        e.detail.handled = true;
-      }
-      if (e?.detail?.origin === "search-module") return;
+    function handleSearchCloseEvent(event) {
+      if (event?.detail) event.detail.handled = true;
+      if (event?.detail?.origin === "search-module") return;
       hideSearch();
     }
-    function handleSearchToggleEvent(e) {
-      if (e?.detail) {
-        e.detail.handled = true;
-      }
-      if (e?.detail?.origin === "search-module") return;
+    function handleSearchToggleEvent(event) {
+      if (event?.detail) event.detail.handled = true;
+      if (event?.detail?.origin === "search-module") return;
       toggleSearch();
     }
-    function handleGlobalKeydown(e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
+    function handleGlobalKeydown(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
         showSearch();
         return;
       }
-      if (e.key === "Escape" && isModalVisible) {
+      if (!isModalVisible) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
         hideSearch();
         return;
       }
+      if (event.key === "Tab") {
+        trapFocus(event);
+      }
     }
-    function handleKeydown(e) {
+    function handleInputKeydown(event) {
       if (!isModalVisible) return;
-      switch (e.key) {
+      switch (event.key) {
         case "ArrowDown":
-          e.preventDefault();
+          event.preventDefault();
           navigateResults(1);
           break;
         case "ArrowUp":
-          e.preventDefault();
+          event.preventDefault();
           navigateResults(-1);
           break;
         case "Enter":
-          e.preventDefault();
-          selectResult();
+          if (selectedIndex >= 0) {
+            event.preventDefault();
+            selectResult();
+          }
           break;
-        case "Escape":
-          hideSearch();
+        default:
           break;
       }
     }
-    function handleInput(e) {
-      const query = e.target.value.trim();
-      toggleClearButton(query.length > 0);
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-      resetNavigation();
-      searchTimeout = setTimeout(() => {
-        if (query.length === 0) {
-          showEmptyState();
-        } else {
-          performSearch(query);
-        }
-      }, 300);
+    function getFocusableElements() {
+      if (!searchModal) return [];
+      const selector = [
+        "button:not([disabled])",
+        "a[href]",
+        "input:not([disabled])",
+        "[tabindex]:not([tabindex='-1'])"
+      ].join(", ");
+      return [...searchModal.querySelectorAll(selector)].filter((element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        if (element.hasAttribute("hidden")) return false;
+        return !element.classList.contains("pointer-events-none");
+      });
     }
-    function handleResultClick(e) {
-      const resultItem = e.target.closest("[data-url]");
-      if (resultItem) {
-        const url = resultItem.dataset.url;
-        if (url) {
-          window.location.href = url;
-        }
+    function trapFocus(event) {
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) return;
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+      if (event.shiftKey && activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+        return;
+      }
+      if (!event.shiftKey && activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
       }
     }
     function showSearch() {
       if (!searchModal || isModalVisible) return;
       isModalVisible = true;
-      searchOverlay.classList.remove("opacity-0", "pointer-events-none");
-      searchOverlay.classList.add("opacity-100");
-      searchModal.classList.remove(
-        "opacity-0",
-        "scale-95",
-        "pointer-events-none"
-      );
+      lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      getUIBridge()?.closeAllMenus?.({ restoreFocus: false });
+      searchOverlay?.classList.remove("opacity-0", "pointer-events-none");
+      searchOverlay?.classList.add("opacity-100");
+      searchModal.classList.remove("opacity-0", "scale-95", "pointer-events-none");
       searchModal.classList.add("opacity-100", "scale-100");
-      document.body.style.overflow = "hidden";
-      setTimeout(() => {
-        if (searchInput) {
-          searchInput.focus();
-        }
-      }, 100);
+      searchModal.setAttribute("aria-hidden", "false");
+      lockScroll();
+      window.setTimeout(() => {
+        searchInput?.focus();
+      }, 50);
+      ensureSearchData().catch(() => {
+      });
       document.dispatchEvent(
         new CustomEvent("search:open", {
           detail: { origin: "search-module" }
@@ -172,386 +184,20 @@
     function hideSearch() {
       if (!searchModal || !isModalVisible) return;
       isModalVisible = false;
-      searchOverlay.classList.add("opacity-0", "pointer-events-none");
-      searchOverlay.classList.remove("opacity-100");
+      searchOverlay?.classList.add("opacity-0", "pointer-events-none");
+      searchOverlay?.classList.remove("opacity-100");
       searchModal.classList.add("opacity-0", "scale-95", "pointer-events-none");
       searchModal.classList.remove("opacity-100", "scale-100");
-      document.body.style.overflow = "";
+      searchModal.setAttribute("aria-hidden", "true");
+      unlockScroll();
       clearSearchContent();
-      resetNavigation();
+      lastFocusedElement?.focus();
+      lastFocusedElement = null;
       document.dispatchEvent(
         new CustomEvent("search:close", {
           detail: { origin: "search-module" }
         })
       );
-    }
-    function clearSearchContent() {
-      if (searchInput) {
-        searchInput.value = "";
-      }
-      toggleClearButton(false);
-      showEmptyState();
-      currentResults = [];
-      selectedIndex = -1;
-    }
-    function resetNavigation() {
-      const prevSelected = searchItems && searchItems.querySelector(".search-result-selected");
-      if (prevSelected) {
-        prevSelected.classList.remove("search-result-selected");
-      }
-      selectedIndex = -1;
-    }
-    function clearSearch() {
-      clearSearchContent();
-      if (searchInput) {
-        searchInput.focus();
-      }
-    }
-    function toggleClearButton(show) {
-      if (!searchClear) return;
-      if (show) {
-        searchClear.classList.remove("opacity-0", "pointer-events-none");
-        searchClear.classList.add("opacity-100");
-      } else {
-        searchClear.classList.add("opacity-0", "pointer-events-none");
-        searchClear.classList.remove("opacity-100");
-      }
-    }
-    function showEmptyState() {
-      hideAllStates();
-      resetNavigation();
-      if (searchEmpty) {
-        searchEmpty.hidden = false;
-      }
-    }
-    function showLoadingState() {
-      hideAllStates();
-      resetNavigation();
-      if (searchLoading) {
-        searchLoading.hidden = false;
-      }
-    }
-    function showNoResultsState() {
-      hideAllStates();
-      resetNavigation();
-      if (searchNoResults) {
-        searchNoResults.hidden = false;
-      }
-    }
-    function showResultsList() {
-      hideAllStates();
-      if (searchResultsList) {
-        searchResultsList.hidden = false;
-      }
-    }
-    function hideAllStates() {
-      const states = [
-        searchEmpty,
-        searchLoading,
-        searchNoResults,
-        searchResultsList
-      ];
-      states.forEach((state) => {
-        if (state) {
-          state.hidden = true;
-        }
-      });
-    }
-    async function loadSearchData() {
-      if (searchData) return searchData;
-      try {
-        const searchConfig = readJSONConfig("search-config");
-        let indexURL = searchConfig?.searchIndexURL || "/index.json";
-        indexURL = indexURL.replace(/['"]/g, "").replace(/%22/g, "");
-        const response = await fetch(indexURL);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const data = await response.json();
-        if (data && typeof data === "object") {
-          const posts = data.posts || [];
-          searchData = posts.map((post) => ({
-            title: post.title,
-            content: post.text,
-            summary: post.text ? post.text.substring(0, 200) : "",
-            url: post.link,
-            date: "",
-            categories: [],
-            tags: []
-          }));
-        } else {
-          searchData = [];
-        }
-        return searchData;
-      } catch (error) {
-        return [];
-      }
-    }
-    async function performSearch(query) {
-      showLoadingState();
-      try {
-        const data = await loadSearchData();
-        const results = searchInData(data, query);
-        currentResults = results;
-        selectedIndex = -1;
-        if (results.length === 0) {
-          showNoResultsState();
-        } else {
-          displayResults(results, query);
-          showResultsList();
-        }
-      } catch (error) {
-        showNoResultsState();
-      }
-    }
-    function parseKeywords(keywords) {
-      return keywords.split(" ").filter((keyword) => {
-        return !!keyword;
-      }).map((keyword) => {
-        return keyword.toLowerCase();
-      });
-    }
-    function filter(keywords, obj, fields) {
-      const keywordArray = parseKeywords(keywords);
-      const containKeywords = keywordArray.filter((keyword) => {
-        const containFields = fields.filter((field) => {
-          if (!obj.hasOwnProperty(field) || !obj[field]) {
-            return false;
-          }
-          const fieldValue = String(obj[field]).toLowerCase();
-          if (fieldValue.indexOf(keyword) > -1) {
-            return true;
-          }
-          return false;
-        });
-        if (containFields.length > 0) {
-          return true;
-        }
-        return false;
-      });
-      return containKeywords.length === keywordArray.length;
-    }
-    function weight(keywords, obj, fields, weights) {
-      let value = 0;
-      parseKeywords(keywords).forEach((keyword) => {
-        const pattern = new RegExp(escapeRegExp(keyword), "gim");
-        fields.forEach((field, index) => {
-          if (obj.hasOwnProperty(field) && obj[field]) {
-            const fieldValue = String(obj[field]);
-            const matches = fieldValue.match(pattern);
-            value += matches ? matches.length * weights[index] : 0;
-          }
-        });
-      });
-      return value;
-    }
-    function escapeRegExp(string) {
-      return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    }
-    function searchInData(data, query) {
-      if (!query || query.trim() === "") {
-        return [];
-      }
-      const keywords = parseKeywords(query);
-      const results = [];
-      data.forEach((item, index) => {
-        let score = 0;
-        let hasMatch = false;
-        keywords.forEach((keyword) => {
-          const keywordLower = keyword.toLowerCase();
-          if (item.title && item.title.toLowerCase().includes(keywordLower)) {
-            score += 10;
-            hasMatch = true;
-          }
-          if (item.content && item.content.toLowerCase().includes(keywordLower)) {
-            score += 1;
-            hasMatch = true;
-          }
-          if (item.summary && item.summary.toLowerCase().includes(keywordLower)) {
-            score += 5;
-            hasMatch = true;
-          }
-        });
-        if (hasMatch) {
-          results.push({
-            ...item,
-            score,
-            keywords
-          });
-        }
-      });
-      const sortedResults = results.sort((a, b) => b.score - a.score);
-      return sortedResults;
-    }
-    function displayResults(results, query) {
-      if (!searchStats || !searchItems) return;
-      const statsTemplate = document.getElementById("search-stats");
-      if (statsTemplate) {
-        const locale = document.documentElement.lang || "en";
-        const pluralRules = new Intl.PluralRules(locale);
-        const category = pluralRules.select(results.length);
-        const categoryKey = `count${category[0].toUpperCase()}${category.slice(1)}`;
-        const template = statsTemplate.dataset[categoryKey] || statsTemplate.dataset.countOther || statsTemplate.textContent;
-        if (template) {
-          searchStats.textContent = template.replace("%d", results.length);
-        }
-      } else {
-        searchStats.textContent = `Found ${results.length} results`;
-      }
-      searchItems.innerHTML = "";
-      results.forEach((result, index) => {
-        const resultElement = createResultElement(result, query, index);
-        searchItems.appendChild(resultElement);
-      });
-    }
-    function generateStarRating(score) {
-      if (!score || score <= 0) return "";
-      let starCount;
-      if (score >= 20) {
-        starCount = 5;
-      } else if (score >= 15) {
-        starCount = 4;
-      } else if (score >= 10) {
-        starCount = 3;
-      } else if (score >= 5) {
-        starCount = 2;
-      } else {
-        starCount = 1;
-      }
-      return "\u2605".repeat(starCount);
-    }
-    function createResultElement(result, query, index) {
-      const div = document.createElement("div");
-      div.className = "search-result-item p-4 cursor-pointer rounded-lg transition-all duration-200 ease-out hover:bg-primary/10 hover:text-primary";
-      div.dataset.url = result.url;
-      div.dataset.index = index;
-      const keywords = result.keywords || parseKeywords(query);
-      const highlightedTitle = highlightText(result.title, keywords);
-      const highlightedSummary = findAndHighlight(
-        result.summary || result.content,
-        keywords,
-        120
-      );
-      const starRating = generateStarRating(result.score);
-      div.innerHTML = `
-      <div class="flex flex-col gap-2">
-        <h3 class="text-base font-semibold text-foreground line-clamp-1">
-          ${highlightedTitle}
-        </h3>
-        <p class="text-sm text-muted-foreground line-clamp-2">
-          ${highlightedSummary}
-        </p>
-        <div class="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>${result.date}</span>
-          ${result.categories && result.categories.length > 0 ? `<span>\u2022</span><span>${result.categories[0]}</span>` : ""}
-          ${starRating ? `<span style="color: #f59e0b;">${starRating}</span>` : ""}
-        </div>
-      </div>
-    `;
-      return div;
-    }
-    function merge(ranges) {
-      let last;
-      const result = [];
-      ranges.forEach((r) => {
-        if (!last || r[0] > last[1]) {
-          result.push(last = r);
-        } else if (r[1] > last[1]) {
-          last[1] = r[1];
-        }
-      });
-      return result;
-    }
-    function findAndHighlight(text, matches, maxlen) {
-      if (!Array.isArray(matches) || !matches.length || !text) {
-        return maxlen ? text.slice(0, maxlen) : text;
-      }
-      const testText = text.toLowerCase();
-      const indices = matches.map((match) => {
-        const index = testText.indexOf(match.toLowerCase());
-        if (!match || index === -1) {
-          return null;
-        }
-        return [index, index + match.length];
-      }).filter((match) => {
-        return match !== null;
-      }).sort((a, b) => {
-        return a[0] - b[0] || a[1] - b[1];
-      });
-      if (!indices.length) {
-        return text;
-      }
-      let result = "";
-      let last = 0;
-      const ranges = merge(indices);
-      const sumRange = [ranges[0][0], ranges[ranges.length - 1][1]];
-      if (maxlen && maxlen < sumRange[1]) {
-        last = sumRange[0];
-      }
-      for (let i = 0; i < ranges.length; i++) {
-        const range = ranges[i];
-        result += text.slice(last, Math.min(range[0], sumRange[0] + maxlen));
-        if (maxlen && range[0] >= sumRange[0] + maxlen) {
-          break;
-        }
-        result += '<mark class="bg-primary/20 text-primary px-1 rounded font-medium">' + text.slice(range[0], range[1]) + "</mark>";
-        last = range[1];
-        if (i === ranges.length - 1) {
-          if (maxlen) {
-            result += text.slice(
-              range[1],
-              Math.min(text.length, sumRange[0] + maxlen + 1)
-            );
-          } else {
-            result += text.slice(range[1]);
-          }
-        }
-      }
-      return result;
-    }
-    function highlightText(text, keywords) {
-      if (!text || !keywords || !Array.isArray(keywords)) return text;
-      return findAndHighlight(text, keywords);
-    }
-    function navigateResults(direction) {
-      if (!currentResults || currentResults.length === 0) {
-        return;
-      }
-      if (!searchItems) {
-        return;
-      }
-      const prevSelected = searchItems.querySelector(".search-result-selected");
-      if (prevSelected) {
-        prevSelected.classList.remove("search-result-selected");
-      }
-      if (selectedIndex === -1) {
-        selectedIndex = direction > 0 ? 0 : currentResults.length - 1;
-      } else {
-        selectedIndex += direction;
-        if (selectedIndex < 0) {
-          selectedIndex = currentResults.length - 1;
-        } else if (selectedIndex >= currentResults.length) {
-          selectedIndex = 0;
-        }
-      }
-      const newSelected = searchItems.querySelector(
-        `[data-index="${selectedIndex}"]`
-      );
-      if (newSelected) {
-        newSelected.classList.add("search-result-selected");
-        newSelected.scrollIntoView({
-          block: "nearest",
-          behavior: "smooth"
-        });
-      }
-    }
-    function selectResult() {
-      if (selectedIndex >= 0 && selectedIndex < currentResults.length) {
-        const result = currentResults[selectedIndex];
-        if (result.url) {
-          window.location.href = result.url;
-        }
-      }
     }
     function toggleSearch() {
       if (isModalVisible) {
@@ -565,6 +211,313 @@
         })
       );
     }
+    function clearSearch() {
+      clearSearchContent();
+      searchInput?.focus();
+    }
+    function clearSearchContent() {
+      if (searchInput) {
+        searchInput.value = "";
+      }
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        searchTimeout = null;
+      }
+      currentResults = [];
+      resetNavigation();
+      toggleClearButton(false);
+      showEmptyState();
+    }
+    function toggleClearButton(show) {
+      if (!searchClear) return;
+      if (show) {
+        searchClear.classList.remove("opacity-0", "pointer-events-none");
+        searchClear.classList.add("opacity-100");
+      } else {
+        searchClear.classList.add("opacity-0", "pointer-events-none");
+        searchClear.classList.remove("opacity-100");
+      }
+    }
+    function resetNavigation() {
+      selectedIndex = -1;
+      syncSelectedResult();
+    }
+    function showEmptyState() {
+      hideAllStates();
+      searchEmpty && (searchEmpty.hidden = false);
+    }
+    function showLoadingState() {
+      hideAllStates();
+      searchLoading && (searchLoading.hidden = false);
+    }
+    function showNoResultsState() {
+      hideAllStates();
+      searchNoResults && (searchNoResults.hidden = false);
+    }
+    function showResultsList() {
+      hideAllStates();
+      searchResultsList && (searchResultsList.hidden = false);
+    }
+    function hideAllStates() {
+      [searchEmpty, searchLoading, searchNoResults, searchResultsList].forEach((element) => {
+        if (element) element.hidden = true;
+      });
+    }
+    async function ensureSearchData() {
+      if (searchData) return searchData;
+      if (searchDataPromise) return searchDataPromise;
+      const searchConfig = readJSONConfig("search-config");
+      const indexURL = searchConfig?.searchIndexURL || "/index.json";
+      searchDataPromise = fetch(indexURL).then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      }).then((data) => {
+        searchData = Array.isArray(data) ? data : [];
+        return searchData;
+      }).catch((error) => {
+        searchData = [];
+        throw error;
+      }).finally(() => {
+        searchDataPromise = null;
+      });
+      return searchDataPromise;
+    }
+    function handleInput(event) {
+      const query = event.target.value.trim();
+      toggleClearButton(query.length > 0);
+      resetNavigation();
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      searchTimeout = window.setTimeout(() => {
+        if (!query) {
+          currentResults = [];
+          showEmptyState();
+          return;
+        }
+        performSearch(query);
+      }, 200);
+    }
+    async function performSearch(query) {
+      showLoadingState();
+      try {
+        const data = await ensureSearchData();
+        currentResults = searchRecords(data, query);
+        if (currentResults.length === 0) {
+          showNoResultsState();
+          return;
+        }
+        renderResults(currentResults, query);
+        showResultsList();
+      } catch (_) {
+        currentResults = [];
+        showNoResultsState();
+      }
+    }
+    function parseKeywords(query) {
+      return query.toLowerCase().split(/\s+/).map((keyword) => keyword.trim()).filter(Boolean);
+    }
+    function normalizeText(value) {
+      if (Array.isArray(value)) {
+        return value.join(" ").toLowerCase();
+      }
+      return String(value || "").toLowerCase();
+    }
+    function scoreRecord(record, keywords) {
+      const title = normalizeText(record.title);
+      const summary = normalizeText(record.summary);
+      const content = normalizeText(record.content);
+      const tags = normalizeText(record.tags);
+      const categories = normalizeText(record.categories);
+      let score = 0;
+      for (const keyword of keywords) {
+        let keywordMatched = false;
+        if (title.includes(keyword)) {
+          score += 40;
+          keywordMatched = true;
+        }
+        if (tags.includes(keyword)) {
+          score += 18;
+          keywordMatched = true;
+        }
+        if (categories.includes(keyword)) {
+          score += 16;
+          keywordMatched = true;
+        }
+        if (summary.includes(keyword)) {
+          score += 10;
+          keywordMatched = true;
+        }
+        if (content.includes(keyword)) {
+          score += 4;
+          keywordMatched = true;
+        }
+        if (!keywordMatched) {
+          return -1;
+        }
+      }
+      return score;
+    }
+    function searchRecords(records, query) {
+      const keywords = parseKeywords(query);
+      if (keywords.length === 0) return [];
+      return records.map((record) => {
+        const score = scoreRecord(record, keywords);
+        return { ...record, keywords, score };
+      }).filter((record) => record.score >= 0).sort((left, right) => right.score - left.score);
+    }
+    function renderResults(results, query) {
+      if (!searchItems || !searchStats) return;
+      updateSearchStats(results.length);
+      searchItems.replaceChildren();
+      const fragment = document.createDocumentFragment();
+      results.forEach((result, index) => {
+        fragment.appendChild(createResultElement(result, query, index));
+      });
+      searchItems.appendChild(fragment);
+      syncSelectedResult();
+    }
+    function updateSearchStats(count) {
+      const template = searchStats?.dataset.countOther || searchStats?.textContent || `Found ${count} results`;
+      searchStats.textContent = template.replace("%d", count);
+    }
+    function createResultElement(result, query, index) {
+      const link = document.createElement("a");
+      link.href = result.permalink;
+      link.dataset.index = String(index);
+      link.className = "search-result-item block rounded-lg p-4 transition-colors duration-200 hover:bg-primary/10";
+      link.setAttribute("role", "listitem");
+      const container = document.createElement("div");
+      container.className = "flex flex-col gap-2";
+      const title = document.createElement("h3");
+      title.className = "text-foreground line-clamp-1 text-base font-semibold";
+      title.appendChild(createHighlightedFragment(result.title || "", result.keywords));
+      const summary = document.createElement("p");
+      summary.className = "text-muted-foreground line-clamp-2 text-sm";
+      summary.appendChild(
+        createExcerptFragment(result.summary || result.content || "", result.keywords, 140)
+      );
+      const meta = document.createElement("div");
+      meta.className = "text-muted-foreground flex flex-wrap items-center gap-2 text-xs";
+      const metaParts = [];
+      if (result.date) metaParts.push(result.date);
+      if (result.section) metaParts.push(result.section);
+      if (Array.isArray(result.categories) && result.categories[0]) {
+        metaParts.push(result.categories[0]);
+      }
+      metaParts.forEach((part) => {
+        const span = document.createElement("span");
+        span.textContent = part;
+        meta.appendChild(span);
+      });
+      container.appendChild(title);
+      container.appendChild(summary);
+      if (metaParts.length > 0) {
+        container.appendChild(meta);
+      }
+      link.appendChild(container);
+      return link;
+    }
+    function createExcerptFragment(text, keywords, maxLength) {
+      if (!text) return document.createTextNode("");
+      const ranges = findHighlightRanges(text, keywords);
+      if (ranges.length === 0) {
+        return document.createTextNode(text.slice(0, maxLength));
+      }
+      const start = Math.max(0, ranges[0][0] - 30);
+      const end = Math.min(text.length, Math.max(ranges[0][1] + 80, start + maxLength));
+      const excerpt = text.slice(start, end);
+      const fragment = createHighlightedFragment(excerpt, keywords);
+      if (start > 0) {
+        fragment.prepend(document.createTextNode("..."));
+      }
+      if (end < text.length) {
+        fragment.append(document.createTextNode("..."));
+      }
+      return fragment;
+    }
+    function createHighlightedFragment(text, keywords) {
+      const fragment = document.createDocumentFragment();
+      const ranges = findHighlightRanges(text, keywords);
+      if (ranges.length === 0) {
+        fragment.append(document.createTextNode(text));
+        return fragment;
+      }
+      let cursor = 0;
+      ranges.forEach(([start, end]) => {
+        if (start > cursor) {
+          fragment.append(document.createTextNode(text.slice(cursor, start)));
+        }
+        const mark = document.createElement("mark");
+        mark.className = "bg-primary/20 text-primary rounded px-1 font-medium";
+        mark.textContent = text.slice(start, end);
+        fragment.append(mark);
+        cursor = end;
+      });
+      if (cursor < text.length) {
+        fragment.append(document.createTextNode(text.slice(cursor)));
+      }
+      return fragment;
+    }
+    function findHighlightRanges(text, keywords) {
+      if (!text || !Array.isArray(keywords) || keywords.length === 0) {
+        return [];
+      }
+      const lowerText = text.toLowerCase();
+      const ranges = [];
+      keywords.forEach((keyword) => {
+        if (!keyword) return;
+        let fromIndex = 0;
+        while (fromIndex < lowerText.length) {
+          const matchIndex = lowerText.indexOf(keyword.toLowerCase(), fromIndex);
+          if (matchIndex === -1) break;
+          ranges.push([matchIndex, matchIndex + keyword.length]);
+          fromIndex = matchIndex + keyword.length;
+        }
+      });
+      ranges.sort((left, right) => left[0] - right[0]);
+      return ranges.reduce((merged, range) => {
+        const lastRange = merged[merged.length - 1];
+        if (!lastRange || range[0] > lastRange[1]) {
+          merged.push([...range]);
+          return merged;
+        }
+        lastRange[1] = Math.max(lastRange[1], range[1]);
+        return merged;
+      }, []);
+    }
+    function navigateResults(direction) {
+      if (!currentResults.length || !searchItems) return;
+      if (selectedIndex === -1) {
+        selectedIndex = direction > 0 ? 0 : currentResults.length - 1;
+      } else {
+        selectedIndex += direction;
+        if (selectedIndex < 0) {
+          selectedIndex = currentResults.length - 1;
+        } else if (selectedIndex >= currentResults.length) {
+          selectedIndex = 0;
+        }
+      }
+      syncSelectedResult();
+      const selectedElement = searchItems.querySelector(`[data-index="${selectedIndex}"]`);
+      selectedElement?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    function syncSelectedResult() {
+      if (!searchItems) return;
+      searchItems.querySelectorAll(".search-result-item").forEach((element, index) => {
+        const isSelected = index === selectedIndex;
+        element.classList.toggle("bg-primary/10", isSelected);
+        element.classList.toggle("text-primary", isSelected);
+        element.setAttribute("aria-selected", isSelected ? "true" : "false");
+      });
+    }
+    function selectResult() {
+      if (selectedIndex < 0 || selectedIndex >= currentResults.length || !searchItems) return;
+      const selectedElement = searchItems.querySelector(`[data-index="${selectedIndex}"]`);
+      selectedElement?.click();
+    }
     window.Search = {
       show: showSearch,
       hide: hideSearch,
@@ -572,7 +525,7 @@
       isVisible: () => isModalVisible
     };
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", init);
+      document.addEventListener("DOMContentLoaded", init, { once: true });
     } else {
       init();
     }

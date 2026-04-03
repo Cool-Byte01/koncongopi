@@ -291,8 +291,8 @@
 
   // ns-hugo-imp:/home/hfish/my-site/themes/hugo-narrow/assets/js/ui.js
   var ToolDropdown = class {
-    constructor(uiManager) {
-      this.ui = uiManager;
+    constructor(uiManager2) {
+      this.ui = uiManager2;
       this.types = ["color-scheme", "theme", "language"];
       this.setup();
     }
@@ -335,12 +335,11 @@
     }
   };
   var NavDisclosure = class {
-    constructor(uiManager) {
-      this.ui = uiManager;
+    constructor(uiManager2) {
+      this.ui = uiManager2;
       this.panel = document.getElementById("mobile-nav-panel");
       this.toggle = document.getElementById("mobile-nav-toggle");
       this.lastFocusedElement = null;
-      this.previousBodyOverflow = "";
       this.setup();
     }
     setup() {
@@ -368,7 +367,7 @@
       this.panel.classList.remove("hidden");
       this.panel.setAttribute("aria-hidden", "false");
       this.toggle.setAttribute("aria-expanded", "true");
-      this.lockScroll();
+      this.ui.lockScroll("mobile-nav");
       this.focusFirstElement();
     }
     closePanel({ restoreFocus = true } = {}) {
@@ -379,7 +378,7 @@
         this.toggle.setAttribute("aria-expanded", "false");
       }
       this.closeAllAccordions();
-      this.unlockScroll();
+      this.ui.unlockScroll("mobile-nav");
       if (restoreFocus && this.lastFocusedElement instanceof HTMLElement) {
         this.lastFocusedElement.focus();
       }
@@ -509,13 +508,6 @@
         firstElement.focus();
       }
     }
-    lockScroll() {
-      this.previousBodyOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-    }
-    unlockScroll() {
-      document.body.style.overflow = this.previousBodyOverflow;
-    }
     closeAll(options) {
       this.closePanel(options);
       this.closeAllDesktopSubmenus();
@@ -525,17 +517,27 @@
     constructor() {
       this.theme = localStorage.getItem("theme") || "system";
       this.colorScheme = localStorage.getItem("colorScheme") || document.documentElement.getAttribute("data-theme") || "default";
+      this.scrollLocks = /* @__PURE__ */ new Set();
+      this.previousBodyOverflow = "";
       this.init();
     }
     init() {
       this.navDisclosure = new NavDisclosure(this);
       this.toolDropdown = new ToolDropdown(this);
+      this.exposeAPI();
       this.setupGlobalListeners();
       this.updateUI();
     }
     closeAllMenus(options = {}) {
       this.toolDropdown.closeAll();
       this.navDisclosure.closeAll(options);
+    }
+    exposeAPI() {
+      window.HugoNarrowUI = {
+        closeAllMenus: (options = {}) => this.closeAllMenus(options),
+        lockScroll: (key) => this.lockScroll(key),
+        unlockScroll: (key) => this.unlockScroll(key)
+      };
     }
     setupGlobalListeners() {
       document.addEventListener("click", (event) => {
@@ -547,7 +549,9 @@
           this.closeAllMenus();
           return;
         }
-        const themeButton = event.target.closest('.dropdown-menu[data-dropdown-type="theme"] [data-theme]');
+        const themeButton = event.target.closest(
+          '.dropdown-menu[data-dropdown-type="theme"] [data-theme]'
+        );
         if (themeButton) {
           this.setTheme(themeButton.getAttribute("data-theme"));
           this.closeAllMenus();
@@ -593,6 +597,21 @@
     applyTheme() {
       const isDark = this.theme === "dark" || this.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches;
       document.documentElement.classList.toggle("dark", isDark);
+    }
+    lockScroll(key = "default") {
+      if (this.scrollLocks.has(key)) return;
+      if (this.scrollLocks.size === 0) {
+        this.previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+      }
+      this.scrollLocks.add(key);
+    }
+    unlockScroll(key = "default") {
+      if (!this.scrollLocks.has(key)) return;
+      this.scrollLocks.delete(key);
+      if (this.scrollLocks.size === 0) {
+        document.body.style.overflow = this.previousBodyOverflow;
+      }
     }
     updateUI() {
       const sunIcons = document.querySelectorAll(".sun-icon, #sun-icon");
@@ -641,16 +660,23 @@
     }
   };
   var initialized3 = false;
+  var uiManager = null;
   function initUI() {
-    if (initialized3) return;
+    if (initialized3) return uiManager;
     initialized3 = true;
-    new UIManager();
+    uiManager = new UIManager();
+    return uiManager;
   }
 
   // <stdin>
-  document.addEventListener("DOMContentLoaded", () => {
+  function boot() {
     initUI();
     initTabs();
     initCodeBlocks();
-  });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
 })();
