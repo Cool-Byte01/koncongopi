@@ -1,13 +1,17 @@
 ---
-date: '2026-03-25T17:37:54+07:00'
-draft: true
-title: 'Di Persimpangan Jalan'
-categories: ['Keluh Kesah']
-series: ['Mencari Jalan Pulang']
+title: Di Persimpangan Jalan
+date: 2026-04-03
+description: Ku melihat banyak manusia bermuka dua. Di satu sisi tampak malaikat, dan yang lain iblis.
+draft: false
+categories:
+  - Keluh Kesah
+series: Mencari Jalan Pulang
 series_order: 1
-tags: ['puisi', 'refleksi']
-description: 'Ku melihat banyak manusia bermuka dua. Di satu sisi tampak malaikat, dan yang lain iblis.'
+tags:
+  - puisi
+  - refleksi
 ---
+
 Aku berada di persimpangan jalan,</br>
 antara surga dan neraka.</br>
 Ku melihat banyak manusia bermuka dua.</br>
