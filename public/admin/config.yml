@@ -1,0 +1,36 @@
+ # yaml-language-server: $schema=https://unpkg.com/@sveltia/cms/schema/sveltia-cms.json
+
+backend:
+  name: github
+  repo: user/repo
+
+media_folder: /public/media
+public_folder: /media
+
+collections:
+  - name: posts
+    label: Posts
+    label_singular: Post
+    folder: /content/posts
+    fields:
+      - { label: Title, name: title, widget: string }
+      - { label: Date, name: date, widget: datetime, type: date }
+      - { label: Body, name: body, widget: richtext }     # - { label: "Title", name: "title", widget: "string" }
+      # - { label: "Date", name: "date", widget: "datetime" }
+      # - { label: "Description", name: "description", widget: "string", required: false }
+      # - { label: "Draft", name: "draft", widget: "boolean", default: false }
+      # - label: "Categories"
+      #   name: "categories"
+      #   widget: "list"
+      #   required: false
+      # - label: "Series"
+      #   name: "series"
+      #   widget: "string"
+      #   required: false
+      # - { label: "Series Order", name: "series_order", widget: "number", value_type: "int", min: 1, required: false }
+      # - label: "Tags"
+      #   name: "tags"
+      #   widget: "list"
+      #   required: false
+      # - { label: "Cover Image", name: "cover", widget: "image", required: false }
+      # - { label: "Body", name: "body", widget: "markdown" }

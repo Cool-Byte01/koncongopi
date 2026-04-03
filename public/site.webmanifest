@@ -1,0 +1,25 @@
+{
+  "background_color": "#ffffff",
+  "categories": [
+    "blog",
+    "technology",
+    "education"
+  ],
+  "description": "Dermaga persiggahan dalam mengarungi samudra kehidupan.",
+  "dir": "ltr",
+  "display": "standalone",
+  "icons": [
+    {
+      "sizes": "any",
+      "src": "/konco-ngopi-logo.svg",
+      "type": "image/svg+xml"
+    }
+  ],
+  "lang": "en",
+  "name": "Konco Ngopi",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "short_name": "Hafis",
+  "start_url": "/",
+  "theme_color": "#09090b"
+}

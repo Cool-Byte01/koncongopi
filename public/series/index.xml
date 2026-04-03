@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Series on Konco Ngopi</title>
+    <link>http://localhost:1313/series/</link>
+    <description>Recent content in Series on Konco Ngopi</description>
+    <generator>Hugo</generator>
+    <language>en</language>
+    <lastBuildDate>Wed, 25 Mar 2026 17:38:03 +0700</lastBuildDate>
+    <atom:link href="http://localhost:1313/series/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Mencari Jalan Pulang</title>
+      <link>http://localhost:1313/series/mencari-jalan-pulang/</link>
+      <pubDate>Wed, 25 Mar 2026 17:38:03 +0700</pubDate>
+      <guid>http://localhost:1313/series/mencari-jalan-pulang/</guid>
+      <description></description>
+    </item>
+  </channel>
+</rss>
