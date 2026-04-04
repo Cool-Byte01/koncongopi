@@ -3,11 +3,12 @@ title: Kini
 date: 2026-03-17
 description: ''
 draft: false
-categories: []
+categories:
+  - Keluh Kesah
 series: ''
 series_order: null
 tags:
-  - refleksi
+  - puisi, refleksi, zaman edan
 cover: ''
 ---
 
