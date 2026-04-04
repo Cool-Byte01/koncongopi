@@ -1,6 +1,6 @@
 ---
 title: Di Persimpangan Jalan Yang Sama
-date: 2026-04-03
+date: 2026-04-04
 description: Ketika kebaikan dan keburukan sama-sama bersuara, dan manusia memakai wajah yang tak selalu jujur.
 draft: false
 categories:
