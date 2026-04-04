@@ -1,6 +1,6 @@
 ---
 title: Di Persimpangan Jalan
-date: 2026-04-03
+date: 2026-01-28
 description: Ku melihat banyak manusia bermuka dua. Di satu sisi tampak malaikat, dan yang lain iblis.
 draft: false
 categories:
