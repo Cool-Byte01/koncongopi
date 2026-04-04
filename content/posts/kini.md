@@ -2,7 +2,7 @@
 title: Kini
 date: 2026-03-17
 description: ''
-draft: true
+draft: false
 categories: []
 series: ''
 series_order: null
