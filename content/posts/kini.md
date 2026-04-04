@@ -1,7 +1,7 @@
 ---
 title: Kini
 date: 2026-03-17
-description: ''
+description: bungkus lebih diminati daripada isi.
 draft: false
 categories:
   - Keluh Kesah
