@@ -1,6 +1,6 @@
 ---
 title: Kini
-date: 2026-04-03
+date: 2026-03-17
 description: ''
 draft: true
 categories: []
